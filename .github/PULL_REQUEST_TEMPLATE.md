@@ -1,11 +1,14 @@
 ## What
 
-## Why
+<!-- What changed and why — one paragraph max -->
 
-## Test plan
-- [ ] Unit tests pass (`python -m pytest tests/test_memory.py tests/test_sandbox.py`)
-- [ ] Lint passes (`ruff check src/ tests/`)
-- [ ] Type check passes (`mypy src/north9/ --ignore-missing-imports`)
-- [ ] Integration tests pass if touching sandbox (`pytest tests/test_integration.py -m integration`)
+## Checklist
+
+- [ ] `python -m pytest tests/test_memory.py tests/test_sandbox.py` passes
+- [ ] `ruff check src/ tests/` passes
+- [ ] `mypy src/north9/ --ignore-missing-imports` passes
+- [ ] Integration tests if touching sandbox: `pytest tests/test_integration.py tests/test_security.py -m integration`
 
 ## Notes
+
+<!-- Breaking changes, migration needed, anything reviewers should know -->
