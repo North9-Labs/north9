@@ -31,19 +31,19 @@ memory    structured state survives /compact and session restarts
 
 ## Results
 
-48-turn realistic debugging session (FastAPI JWT auth incident). 10 critical values tracked across a context reset: file paths, error messages, test commands, PR URLs, deploy commands, blocked paths.
+40-turn realistic debugging session (FastAPI JWT auth incident). 10 critical values tracked. Resumption quality measured by asking Claude 10 factual questions using only the compressed context — no peeking at the original conversation.
 
 ```
-                              Tokens    vs raw    Values preserved
-─────────────────────────────────────────────────────────────────
-Raw retention                  4,863      1.0x   10/10  (100%)
-Prose summary (/compact)         104     46.8x    0/10    (0%)
-north9 memory (structured)       421     11.6x   10/10  (100%)
+                              Tokens    vs raw    Values    Resumption QA
+─────────────────────────────────────────────────────────────────────────
+Raw retention                  2,437      1.0x    10/10             —
+Prose summary (/compact)         267      9.1x     5/10           7/10
+north9 memory (structured)       584      4.2x     9/10           9/10
 ```
 
-Prose compresses 47× harder but loses every critical value — the agent can't resume. north9 is only 4× larger than prose and preserves 100% of values. After any context reset, the agent picks up exactly where it left off.
+Prose is 2.2× smaller than north9 but answers 2 fewer questions correctly from the compressed context alone. The gap is larger on value presence (5/10 vs 9/10) — prose drops the exact test command, PR URL, deploy command, and test result count. An agent resuming from prose has to guess or re-investigate; north9 has the exact values ready.
 
-Run the benchmark yourself: `python3 benchmark/run.py` (set `ANTHROPIC_API_KEY` for live compression).
+Run it yourself: `python3 benchmark/run.py` (uses `claude` CLI — Claude Code required).
 
 ---
 

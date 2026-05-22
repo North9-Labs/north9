@@ -53,11 +53,17 @@ Preservation rules — CRITICAL:
 - snippets is OPTIONAL — only include code the agent must reference verbatim
 - Copy EXACTLY: file paths, error messages, exception types, command flags, IDs, \
 hostnames, port numbers, versions, env var names, URLs, test counts (e.g. "14 passing, 2 failing")
+- URLs: NEVER shorten — write the full URL. e.g. "pr_url: https://github.com/org/repo/pull/412" \
+NOT "pr_number: 412"
+- Shell commands: preserve the FULL command with all flags and arguments. \
+e.g. "deploy_cmd: ./deploy.sh staging v1.4.2-hotfix" NOT "deployed to staging"
 - For error tracebacks: preserve the exception type and message exactly, e.g. \
 "KeyError: 'private_key' at auth/jwt.py:42"
 - For tool call results: note the tool name and the critical part of its output
 - failed list is critical: the agent MUST NOT retry these — exact failure reason must be preserved
 - When in doubt, preserve the original text rather than summarizing
+- facts section MUST capture: any URL that appeared, any shell command that was run, \
+any file path, any test command, any policy name or rule that blocked an action
 
 Example:
 ```yaml
@@ -81,6 +87,8 @@ facts:
   - "secret_env: JWT_SECRET"
   - "test_cmd: pytest tests/auth/ -v"
   - "staging_url: https://staging.example.com"
+  - "pr_url: https://github.com/org/repo/pull/42"
+  - "deploy_cmd: ./deploy.sh staging v1.2.3-hotfix"
 
 snippets:
   - lang: "python"
