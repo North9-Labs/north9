@@ -350,4 +350,4 @@ north9 is part of a suite of tools for building serious AI agents:
 
 ## License
 
-MIT — [North9 Labs](https://north9.io)
+MIT — [North9 Labs](https://north9.org)
