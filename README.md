@@ -48,12 +48,16 @@ Prose compresses 15× harder but loses every critical value — the agent can't 
 ## Claude Code setup
 
 ```sh
+# north9 only (sandbox + memory)
 pip install "git+https://github.com/North9-Labs/north9.git#egg=north9[mcp]" && python3 -m north9 --install
+
+# Full suite (all 9 tools)
+pip install "git+https://github.com/North9-Labs/north9.git#egg=north9[mcp]" && python3 -m north9 --suite
 ```
 
 Restart Claude Code. **Requires Docker.**
 
-One command installs three things:
+`--install` wires up three things. `--suite` also installs Lens, Index, Forge, Vault, Grid, Budget, Gate, and Scout.
 
 ### 1 — PreCompact hook
 
