@@ -343,6 +343,11 @@ north9 is part of a suite of tools for building serious AI agents:
 | Project | What it does |
 |---|---|
 | **north9** ← you are here | Sandbox + memory — safe execution and persistent context |
+| [**Lens**](https://github.com/North9-Labs/Lens) | Observability — trace every tool call, token cost, and latency |
+| [**Index**](https://github.com/North9-Labs/Index) | Semantic memory — keyword search across all past agent runs and projects |
+| [**Forge**](https://github.com/North9-Labs/Forge) | Eval framework — YAML test cases, run against any model, catch regressions |
+| [**Vault**](https://github.com/North9-Labs/Vault) | Secrets — encrypted credential store, inject API keys at runtime |
+| [**Grid**](https://github.com/North9-Labs/Grid) | Parallelism — N tasks at 30s each → still 30s total |
 | [**Prism**](https://github.com/North9-Labs/Prism) | Time-travel debugger — record, replay, and fork any agent session |
 | [**Seam**](https://github.com/North9-Labs/Seam) | Post-quantum encrypted communications over UDP |
 
