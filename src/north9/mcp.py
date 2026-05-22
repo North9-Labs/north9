@@ -778,6 +778,56 @@ def _install() -> None:
     print("Memory:    .north9_state.json (in your project)")
 
 
+_SUITE_PACKAGES = [
+    ("lens",   "git+https://github.com/North9-Labs/Lens.git",   "Agent observability"),
+    ("index",  "git+https://github.com/North9-Labs/Index.git",  "Persistent keyword memory"),
+    ("forge",  "git+https://github.com/North9-Labs/Forge.git",  "Eval framework"),
+    ("vault",  "git+https://github.com/North9-Labs/Vault.git",  "Encrypted secrets"),
+    ("grid",   "git+https://github.com/North9-Labs/Grid.git",   "Parallel execution"),
+    ("budget", "git+https://github.com/North9-Labs/Budget.git", "Cost enforcement"),
+    ("gate",   "git+https://github.com/North9-Labs/Gate.git",   "Policy enforcement"),
+    ("scout",  "git+https://github.com/North9-Labs/Scout.git",  "Web fetch + search"),
+]
+
+
+def _install_suite() -> None:
+    import subprocess
+    import sys
+
+    print("Installing North9 suite...\n")
+    _install()
+    print()
+
+    failed = []
+    for name, url, desc in _SUITE_PACKAGES:
+        print(f"  Installing {name} ({desc})...")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--quiet", url],
+                check=True,
+            )
+            subprocess.run(
+                [sys.executable, "-m", name, "--install"],
+                check=True,
+                capture_output=True,
+            )
+            print(f"  ✓ {name}")
+        except Exception as e:
+            print(f"  ✗ {name}: {e}")
+            failed.append(name)
+
+    print()
+    if failed:
+        print(f"Installed with errors. Failed: {', '.join(failed)}")
+        print("Re-run: python3 -m <name> --install  to retry individual packages")
+    else:
+        print("Full suite installed. Restart Claude Code to activate all tools.")
+    print()
+    print("Install URLs:")
+    for name, _, _ in _SUITE_PACKAGES:
+        print(f"  curl -fsSL https://install.north9.org/{name}.sh | sh")
+
+
 def main() -> None:
     import argparse
 
@@ -801,7 +851,13 @@ def main() -> None:
                         help="Container name (default: north9-default)")
     parser.add_argument("--state-file", default=None,
                         help="Memory state file (default: .north9_state.json)")
+    parser.add_argument("--suite", action="store_true",
+                        help="Install the full North9 suite (all 9 packages)")
     args, _ = parser.parse_known_args()
+
+    if args.suite:
+        _install_suite()
+        return
 
     if args.install:
         _install()
