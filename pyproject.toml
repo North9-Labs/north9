@@ -9,7 +9,7 @@ description = "Sandboxed execution + persistent memory for AI agents"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-authors = [{ name = "North9 Labs", email = "oss@north9.io" }]
+authors = [{ name = "North9 Labs", email = "oss@north9.org" }]
 keywords = [
     "ai", "agent", "sandbox", "docker", "context", "compression",
     "memory", "llm", "anthropic", "openai", "mcp", "autonomous",
