@@ -14,3 +14,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 *.pyc
+.claude/
+.env.*
+CLAUDE.md
+benchmark/results.json
