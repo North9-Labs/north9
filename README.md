@@ -4,32 +4,34 @@
 
 **The missing runtime for autonomous AI agents.**
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Tests](https://github.com/North9-Labs/north9/actions/workflows/ci.yml/badge.svg)](https://github.com/North9-Labs/north9/actions)
+Run anything. Forget nothing.
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/North9-Labs/north9/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/North9-Labs/north9/actions)
 
 </div>
 
 ---
 
-Two things kill long-running AI agents in production:
+Two things kill long-running AI agents:
 
-**They destroy things.** Agent runs `rm -rf`, installs malware, loops forever on the file system. You give an agent a `bash` tool and hope for the best.
+**They destroy things.** Give an agent a `bash` tool and it `rm -rf`s the wrong directory, fills your disk, or loops forever consuming CPU. There's no wall between the agent and your machine.
 
-**They forget everything.** Context window fills up. `/compact` turns 200 turns of exact file paths, error messages, and test results into vague prose. The agent starts over — retries the same broken approach, asks the same questions, loses the exact commands it already ran.
+**They forget everything.** Context fills up. `/compact` turns 200 turns of exact file paths, error messages, and test results into vague prose. The agent loses where it was, retries the same broken approach, and asks questions it already answered three sessions ago.
 
-These aren't separate problems. An agent that can't safely execute anything can't do real work. An agent that loses its mind every 150k tokens can't do long work. north9 solves both.
+north9 solves both in one package.
 
 ```
-Sandbox   every command runs in Docker — your machine is always safe
-Memory    structured state survives /compact and session restarts
+sandbox   every command runs in Docker — your machine is always safe
+memory    structured state survives /compact and session restarts
 ```
 
 ---
 
 ## Results
 
-Simulated 200-turn coding session. 8 critical values tracked across a context reset: file paths, error messages, URLs, commands.
+Simulated 200-turn coding session. 8 critical values tracked across a context reset.
 
 ```
                               Tokens    vs raw    Values preserved
@@ -39,38 +41,35 @@ Prose summary (/compact)         454     15.6x    0/8   (0%)
 north9 memory (structured)       668     10.6x    8/8  (100%)
 ```
 
-Prose compresses harder but loses every critical value — the agent can't resume meaningful work. north9 trades ~200 extra tokens to preserve all 8. After any context reset, the agent knows exactly where it left off.
+Prose compresses 15× harder but loses every critical value — the agent can't resume. north9 trades ~200 extra tokens to preserve all 8. After any context reset, the agent picks up exactly where it left off.
 
 ---
 
 ## Claude Code setup
 
-One command:
-
 ```sh
 pip install "git+https://github.com/North9-Labs/north9.git#egg=north9[mcp]" && python3 -m north9 --install
 ```
 
-Restart Claude Code. **Requires Docker running.**
+Restart Claude Code. **Requires Docker.**
 
-`--install` wires in three things:
+One command installs three things:
 
-**1. PreCompact hook** (`~/.claude/hooks/north9-pre-compact.py`)
+### 1 — PreCompact hook
 
-Fires before *every* compaction — both auto-compact (context limit) and manual `/compact`. Claude sees instructions to save memory state before the prose summary is generated. Zero user action needed.
+Fires before **every** compaction — auto-compact when context fills and manual `/compact`. Claude saves structured memory before the prose summary is generated. No user action required.
 
 ```
-Context fills up
-  → PreCompact hook fires
-  → Claude calls memory_mark_completed / memory_mark_failed / memory_anchor
-  → memory_save() — .north9_state.json written
-  → /compact proceeds (brief prose is fine — memory has the exact values)
-  → Next session: state reloads automatically
+context fills → PreCompact hook fires
+             → memory_mark_completed / memory_mark_failed / memory_anchor
+             → memory_save()  →  .north9_state.json written to disk
+             → /compact proceeds (brief prose is fine — memory has exact values)
+             → next session: state reloads automatically
 ```
 
-**2. SessionStart hook** (`~/.claude/hooks/north9-session-start.py`)
+### 2 — SessionStart hook
 
-At every session start, Claude sees prior state injected before the first message:
+Prior state is injected before the first message of every session:
 
 ```
 [NORTH9] Prior session context restored:
@@ -78,7 +77,7 @@ At every session start, Claude sees prior state injected before the first messag
 OBJECTIVE: Fix authentication bug and deploy hotfix
 
 COMPLETED (12 total, showing last 3):
-  ✓ Reproduced failure locally → JWT decode fails when iss claim missing
+  ✓ Reproduced failure → JWT decode fails when iss claim missing
   ✓ Located root cause → src/auth/middleware.py:87
   ✓ All tests passing → pytest tests/auth/ → 47 passed, 0 failed
 
@@ -99,55 +98,48 @@ Sandbox ready — use bash(), write_file(), snapshot().
 
 Claude knows exactly where it left off before you say a word.
 
-**3. MCP server with 17 tools**
+### 3 — MCP server (17 tools)
 
-All sandbox execution and memory management available as MCP tools directly in Claude Code.
+**Sandbox** — isolated Docker execution:
 
-### MCP tools
-
-**Sandbox — isolated Docker execution:**
-
-| Tool | When to use |
+| Tool | Description |
 |---|---|
-| `bash` | Run any command — apt-get, pip, pytest, make, curl |
+| `bash` | Run any command — apt-get, pip, pytest, curl |
 | `write_file` | Write files to /workspace (visible live on host) |
-| `read_file` | Read files from the sandbox |
+| `read_file` | Read files |
 | `list_files` | List workspace contents |
-| `snapshot` | Checkpoint container before installs or risky ops |
-| `rollback` | Restore to snapshot if something breaks |
-| `export_file` | Copy a file out of the container to the host |
+| `snapshot` | Checkpoint container state before installs or risky ops |
+| `rollback` | Restore to a previous snapshot |
+| `export_file` | Copy a file from the container to the host |
 | `upload_file` | Copy a host file into the container |
-| `sandbox_status` | Show workspace path, image, snapshots |
+| `sandbox_status` | Workspace path, image, network, snapshots |
 
-**Memory — persists across compactions and restarts:**
+**Memory** — persists across context resets:
 
-| Tool | When to use |
+| Tool | Description |
 |---|---|
 | `memory_get` | Read full state — call at session start |
 | `memory_set_objective` | Set the session goal |
-| `memory_mark_completed` | After each step — include exact result |
-| `memory_mark_failed` | Dead ends — include exact error, never retried |
-| `memory_add_pending` | Concrete next steps |
+| `memory_mark_completed` | Record a step with exact result |
+| `memory_mark_failed` | Record a dead end — never retried |
+| `memory_add_pending` | Add a concrete next step |
 | `memory_complete_pending` | Mark a pending item done |
-| `memory_anchor` | Pin exact values: paths, URLs, commands, errors |
+| `memory_anchor` | Pin an exact value (path, URL, command, error) |
 | `memory_save` | Checkpoint before risky operations |
-| `memory_load` | Restore from a checkpoint file |
-| `memory_reset` | Clear all state and start fresh |
+| `memory_reset` | Clear all state |
 
-### Sandbox options
+### Sandbox image options
 
 ```sh
 # Default: python:3.12-slim, no internet
 python3 -m north9
 
-# Ubuntu with internet (for apt-get, npm, general tools)
-python3 -m north9 --image ubuntu:22.04 --network bridge --memory 1g
+# Ubuntu with internet — for apt-get, npm, general tools
+python3 -m north9 --image ubuntu:22.04 --network bridge
 
-# Use the full-featured runtime image (Python + Node + build tools)
+# Pre-built runtime: Python + Node + git + gcc + ripgrep + pnpm
 docker build -t north9-runtime . && python3 -m north9 --image north9-runtime --network bridge
 ```
-
-The included `Dockerfile` builds a `north9-runtime` image with Python, Node.js, git, gcc, ripgrep, jq, pnpm, and build tools pre-installed.
 
 ---
 
@@ -158,30 +150,16 @@ The included `Dockerfile` builds a `north9-runtime` image with Python, Node.js, 
 ```python
 import north9
 
-# Context manager — container starts on enter, destroyed on exit
 with north9.Sandbox(network="bridge") as env:
-    # Install what you need
     env.run("pip install flask requests")
     env.snapshot("after-install")
 
-    # Write files
-    env.write_file("app.py", """
-from flask import Flask
-app = Flask(__name__)
+    env.write_file("app.py", "from flask import Flask\napp = Flask(__name__)")
+    result = env.run("python -c 'import flask; print(flask.__version__)'")
 
-@app.route("/health")
-def health():
-    return {"status": "ok"}
-""")
-
-    # Run it
-    result = env.run("python app.py &")
-
-    # Rollback if anything breaks
     if not result.success:
         env.rollback("after-install")
 
-    # Pull the output to your machine
     env.export("output.json", "./output.json")
 ```
 
@@ -190,8 +168,7 @@ The agent can `rm -rf /workspace`. Your machine is fine.
 ### Memory
 
 ```python
-import anthropic
-import north9
+import anthropic, north9
 
 client = anthropic.Anthropic()
 mem = north9.Memory(client, keep_recent=10, token_limit=150_000)
@@ -208,16 +185,14 @@ while not done:
 
     mem.add("assistant", response.content[0].text)
 
-# Pin facts that must survive every compression
+# Pin facts that survive every compression
 mem.anchor("root_cause: src/auth/middleware.py:87")
-mem.anchor("test_cmd: pytest tests/auth/ -v --tb=short")
 ```
 
-### Combined — the full loop
+### Combined
 
 ```python
-import anthropic
-import north9
+import anthropic, north9
 
 client = anthropic.Anthropic()
 mem = north9.Memory(client, keep_recent=10, token_limit=150_000)
@@ -271,13 +246,13 @@ async with north9.AsyncSandbox(network="bridge") as env:
 ```python
 north9.Sandbox(
     image="python:3.12-slim",  # Docker image — ubuntu:22.04 for apt+general tools
-    workspace_dir=None,        # Host path for /workspace (auto-created if None)
-    name=None,                 # Container name (auto-generated if None)
+    workspace_dir=None,        # Host path for /workspace (auto-created)
+    name=None,                 # Container name (auto-generated)
     network="none",            # "none" (isolated) | "bridge" (internet)
     memory="512m",             # Memory limit: "512m", "1g", "2g"
     cpus=1.0,                  # CPU limit
     pids_limit=512,            # Fork bomb protection
-    ports=None,                # {host_port: container_port}
+    ports=None,                # {host_port: container_port} for web servers
 )
 ```
 
@@ -288,17 +263,17 @@ north9.Memory(
     client,
     keep_recent=10,                              # turns kept verbatim
     token_limit=150_000,                         # compression threshold
-    compress_model="claude-haiku-4-5-20251001",  # model for compression
+    compress_model="claude-haiku-4-5-20251001",  # compression model
     max_tool_result_chars=4_000,                 # truncate large tool outputs
     max_completed=100,                           # cap completed list size
     on_compress=callback,                        # called after each compression
-    compress_prompt=custom_instructions,         # override default compression prompt
+    compress_prompt=custom_instructions,         # domain-specific compression
 )
 ```
 
-**Recommended `token_limit`:**
+**Recommended limits:**
 
-| Model | Context | Recommended limit |
+| Model | Context | `token_limit` |
 |---|---|---|
 | claude-opus-4-7 | 200k | 150,000 |
 | claude-sonnet-4-6 | 200k | 150,000 |
@@ -310,32 +285,31 @@ north9.Memory(
 
 | Protection | Mechanism |
 |---|---|
-| Filesystem isolation | Container has own root; only `/workspace` shared with host |
-| Symlink escape prevention | `read_file`/`write_file` detect and block escapes |
+| Filesystem isolation | Container has its own root; only `/workspace` shared with host |
+| Symlink escape prevention | `read_file`/`write_file` detect and block path escapes |
 | No privilege escalation | `--security-opt no-new-privileges` |
-| Minimal capabilities | `--cap-drop=ALL`, adds back only `SETUID SETGID CHOWN FOWNER DAC_OVERRIDE` |
+| Minimal capabilities | `--cap-drop=ALL` + only `SETUID SETGID CHOWN FOWNER DAC_OVERRIDE` |
 | Network isolation | `network="none"` by default; `bridge` opt-in; `host` blocked |
 | Resource limits | `--pids-limit=512`, `--memory=512m`, `--cpus=1.0` |
-| Workspace validation | Refuses to mount system paths (`/etc`, `/usr`, `/var/run`, `/`) |
+| Workspace validation | Refuses system paths: `/etc`, `/usr`, `/var/run`, `/` |
 
 ---
 
-## How compression works
+## How memory compression works
 
 ```
-Turns 1–N (older)                          Turns N-9 to N (recent)
-──────────────────────────────────────────────────────────────────
-[user: run the test suite         ]         [user: CI status?     ]  ← kept verbatim
-[asst: TOOL_USE bash pytest ...   ]         [asst: Tests passing  ]
-[user: TOOL_RESULT: 47 passed     ]         [user: Try the fix    ]  ← keep_recent=10
-[user: check middleware.py        ]         [asst: TOOL_USE ...   ]
-[asst: line 87 missing issuer     ]         [user: TOOL_RESULT .. ]
+Turns 1–N (older)                        Turns N-9 to N (recent)
+────────────────────────────────────────────────────────────────
+[user: run the test suite        ]        [user: CI status?    ]  ← kept verbatim
+[asst: TOOL_USE bash pytest ...  ]        [asst: Tests passing ]
+[user: TOOL_RESULT: 47 passed    ]        [user: Try the fix   ]  ← keep_recent=10
+[user: check middleware.py       ]        [asst: TOOL_USE ...  ]
+[asst: line 87 missing issuer    ]        [user: TOOL_RESULT . ]
 ...
         │
         ▼  sent to claude-haiku for compression
-        │
         ▼
-[NORTH9: compressed prior context]  ← merged into system prompt
+[NORTH9: compressed prior context]  ← injected into system prompt
 OBJECTIVE: Fix auth bug
 COMPLETED: ✓ Found root cause → middleware.py:87
 FAILED:    ✗ RS256 → KeyError: 'RS256_PRIVATE_KEY' [DO NOT RETRY]
@@ -346,37 +320,31 @@ State accumulates across compressions. Pending items clear automatically when ma
 
 ---
 
-## Custom compression prompt
-
-For domain-specific agents, override what gets preserved:
-
-```python
-DEVOPS_PROMPT = """
-You are compressing AI agent history for a DevOps agent.
-Preserve exactly: server hostnames, IPs, ports, deployment commands,
-service versions, exit codes, error messages, alert thresholds.
-Output the standard YAML structure.
-"""
-
-mem = north9.Memory(client, compress_prompt=DEVOPS_PROMPT, ...)
-```
-
----
-
 ## Comparison
 
 | | Raw | `/compact` prose | north9 |
 |---|---|---|---|
 | Hits context limit | Eventually | No | No |
-| Exact file paths preserved | Yes | ✗ lost | Yes |
-| Exact error messages | Yes | ✗ paraphrased | Yes |
+| Exact file paths preserved | Yes | ✗ lost | **Yes** |
+| Exact error messages | Yes | ✗ paraphrased | **Yes** |
 | "Do not retry" tracking | No | No | **Yes** |
 | Safe execution | No | No | **Yes** |
-| Rollback on failure | No | No | **Yes** |
-| Drop-in, no refactor | — | No | **Yes** |
-| Zero dependencies | — | — | **Yes** |
+| Snapshot + rollback | No | No | **Yes** |
+| Zero required dependencies | — | — | **Yes** |
 | Claude Code MCP | — | — | **Yes** |
 | Auto session restore | — | — | **Yes** |
+
+---
+
+## North9 Labs
+
+north9 is part of a suite of tools for building serious AI agents:
+
+| Project | What it does |
+|---|---|
+| **north9** ← you are here | Sandbox + memory — safe execution and persistent context |
+| [**Prism**](https://github.com/North9-Labs/Prism) | Time-travel debugger — record, replay, and fork any agent session |
+| [**Seam**](https://github.com/North9-Labs/Seam) | Post-quantum encrypted communications over UDP |
 
 ---
 

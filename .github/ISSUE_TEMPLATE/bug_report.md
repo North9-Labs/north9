@@ -1,23 +1,40 @@
 ---
 name: Bug report
-about: Something broken
+about: Something is broken
 labels: bug
+assignees: ''
 ---
 
 **What happened**
-<!-- Clear description -->
 
-**To reproduce**
+<!-- One-line description -->
+
+**Minimal reproduction**
+
 ```python
-# minimal code
+import north9
+
+# smallest code that triggers the bug
 ```
 
-**Expected**
+**Expected behavior**
 
-**Actual** (include full traceback)
+**Actual behavior** (include full traceback)
+
+```
+paste traceback here
+```
 
 **Environment**
-- north9 version:
+
+- north9: `python -c "import north9; print(north9.__version__)"`
 - Python:
-- Docker:
+- Docker: `docker --version`
 - OS:
+
+**Component**
+
+- [ ] Sandbox (Docker execution)
+- [ ] Memory (context compression)
+- [ ] MCP server / Claude Code integration
+- [ ] PreCompact / SessionStart hooks
