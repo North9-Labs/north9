@@ -31,17 +31,19 @@ memory    structured state survives /compact and session restarts
 
 ## Results
 
-Simulated 200-turn coding session. 8 critical values tracked across a context reset.
+48-turn realistic debugging session (FastAPI JWT auth incident). 10 critical values tracked across a context reset: file paths, error messages, test commands, PR URLs, deploy commands, blocked paths.
 
 ```
                               Tokens    vs raw    Values preserved
 ─────────────────────────────────────────────────────────────────
-Raw retention                  7,102      1.0x    5/8
-Prose summary (/compact)         454     15.6x    0/8   (0%)
-north9 memory (structured)       668     10.6x    8/8  (100%)
+Raw retention                  4,863      1.0x   10/10  (100%)
+Prose summary (/compact)         104     46.8x    0/10    (0%)
+north9 memory (structured)       421     11.6x   10/10  (100%)
 ```
 
-Prose compresses 15× harder but loses every critical value — the agent can't resume. north9 trades ~200 extra tokens to preserve all 8. After any context reset, the agent picks up exactly where it left off.
+Prose compresses 47× harder but loses every critical value — the agent can't resume. north9 is only 4× larger than prose and preserves 100% of values. After any context reset, the agent picks up exactly where it left off.
+
+Run the benchmark yourself: `python3 benchmark/run.py` (set `ANTHROPIC_API_KEY` for live compression).
 
 ---
 
