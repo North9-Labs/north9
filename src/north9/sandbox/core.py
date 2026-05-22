@@ -1,4 +1,4 @@
-"""Cage: sandboxed execution environment for AI agents.
+"""north9 sandbox — Docker execution layer for AI agents.
 
 Every command runs inside an ephemeral Docker container. The workspace is
 volume-mounted from the host so you can open it in your IDE and watch the
@@ -972,7 +972,7 @@ class AsyncSandbox:
 
     Usage::
 
-        async with cage.AsyncSandbox(network="bridge") as env:
+        async with north9.AsyncSandbox(network="bridge") as env:
             await env.run("pip install requests")
             await env.snapshot()
             result = await env.run("python app.py")
