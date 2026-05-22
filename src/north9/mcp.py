@@ -787,7 +787,59 @@ _SUITE_PACKAGES = [
     ("budget", "git+https://github.com/North9-Labs/Budget.git", "Cost enforcement"),
     ("gate",   "git+https://github.com/North9-Labs/Gate.git",   "Policy enforcement"),
     ("scout",  "git+https://github.com/North9-Labs/Scout.git",  "Web fetch + search"),
+    ("sift",   "git+https://github.com/North9-Labs/Sift.git",   "CSV/JSON SQL queries"),
+    ("chain",  "git+https://github.com/North9-Labs/Chain.git",  "Workflow runner"),
 ]
+
+
+def _status() -> None:
+    """Show installation status of all North9 packages."""
+    import importlib.util
+    import json
+
+    print("North9 suite status\n")
+
+    all_pkgs = [("north9", "Sandbox + memory")] + [(n, d) for n, _, d in _SUITE_PACKAGES]
+    installed = []
+    missing = []
+
+    for name, desc in all_pkgs:
+        spec = importlib.util.find_spec(name)
+        if spec is not None:
+            try:
+                mod = importlib.import_module(name)
+                version = getattr(mod, "__version__", "?")
+                print(f"  ✓ {name:<10} {version:<8} {desc}")
+                installed.append(name)
+            except Exception:
+                print(f"  ✓ {name:<10} {'?':<8} {desc}")
+                installed.append(name)
+        else:
+            print(f"  ✗ {name:<10} {'not installed':<8} {desc}")
+            missing.append(name)
+
+    print()
+
+    # Check MCP server registration
+    settings_path = Path.home() / ".claude" / "settings.json"
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            registered = list(settings.get("mcpServers", {}).keys())
+            hooks = settings.get("hooks", {})
+            print(f"  MCP servers registered: {', '.join(registered) if registered else 'none'}")
+            print(f"  Hooks: {', '.join(hooks.keys()) if hooks else 'none'}")
+        except Exception:
+            pass
+    else:
+        print("  Claude Code settings not found (~/.claude/settings.json)")
+
+    print()
+    if missing:
+        print(f"  Missing: {', '.join(missing)}")
+        print("  Run: python3 -m north9 --suite   to install everything")
+    else:
+        print("  All packages installed.")
 
 
 def _install_suite() -> None:
@@ -852,8 +904,14 @@ def main() -> None:
     parser.add_argument("--state-file", default=None,
                         help="Memory state file (default: .north9_state.json)")
     parser.add_argument("--suite", action="store_true",
-                        help="Install the full North9 suite (all 9 packages)")
+                        help="Install the full North9 suite (all 11 packages)")
+    parser.add_argument("--status", action="store_true",
+                        help="Show installation status of all North9 packages")
     args, _ = parser.parse_known_args()
+
+    if args.status:
+        _status()
+        return
 
     if args.suite:
         _install_suite()
