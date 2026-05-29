@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from north9.forge.core import Assertion, Suite, SuiteResult, TestCase, TestResult
+from north9.forge.core import Assertion, Suite, SuiteResult, EvalCase, EvalResult
 from north9.forge.mcp import forge_check, forge_example
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ class TestAssertionFromDict:
 
 
 # ---------------------------------------------------------------------------
-# TestCase.from_dict
+# EvalCase.from_dict
 # ---------------------------------------------------------------------------
 
 class TestTestCaseFromDict:
@@ -147,7 +147,7 @@ class TestTestCaseFromDict:
             "input": "Say hello",
             "assert": [{"contains": "hello"}],
         }
-        tc = TestCase.from_dict(d)
+        tc = EvalCase.from_dict(d)
         assert tc.name == "test one"
         assert tc.input == "Say hello"
         assert len(tc.assertions) == 1
@@ -159,12 +159,12 @@ class TestTestCaseFromDict:
             "input": "Write code",
             "assertions": [{"regex": r"def \w+"}],
         }
-        tc = TestCase.from_dict(d)
+        tc = EvalCase.from_dict(d)
         assert len(tc.assertions) == 1
 
     def test_optional_fields_defaults(self) -> None:
         d = {"name": "minimal", "input": "hi"}
-        tc = TestCase.from_dict(d)
+        tc = EvalCase.from_dict(d)
         assert tc.system is None
         assert tc.model is None
         assert tc.tags == []
@@ -178,7 +178,7 @@ class TestTestCaseFromDict:
             "model": "claude-opus-4-5",
             "tags": ["smoke", "fast"],
         }
-        tc = TestCase.from_dict(d)
+        tc = EvalCase.from_dict(d)
         assert tc.system == "custom system"
         assert tc.model == "claude-opus-4-5"
         assert tc.tags == ["smoke", "fast"]
@@ -286,8 +286,8 @@ class TestSuiteResult:
     def _make_result(self, passed_flags: list[bool]) -> SuiteResult:
         results = []
         for i, p in enumerate(passed_flags):
-            tc = TestCase(name=f"test {i}", input="hi")
-            tr = TestResult(
+            tc = EvalCase(name=f"test {i}", input="hi")
+            tr = EvalResult(
                 case=tc,
                 passed=p,
                 failures=[] if p else ["something failed"],
@@ -336,8 +336,8 @@ class TestSuiteResult:
         assert "something failed" in report
 
     def test_format_report_error(self) -> None:
-        tc = TestCase(name="err test", input="hi")
-        tr = TestResult(
+        tc = EvalCase(name="err test", input="hi")
+        tr = EvalResult(
             case=tc,
             passed=False,
             failures=[],

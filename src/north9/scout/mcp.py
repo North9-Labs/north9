@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .core import Scout
 
-mcp = FastMCP("scout")
+mcp = FastMCP("north9-scout")
 
 _scout: Scout | None = None
 

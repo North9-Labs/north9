@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .core import Vault
 
-mcp = FastMCP("vault")
+mcp = FastMCP("north9-vault")
 
 _vault: Vault | None = None
 _ENV_KEY = "NORTH9_VAULT_KEY"

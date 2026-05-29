@@ -12,14 +12,16 @@ from typing import Any
 _DEFAULT_DB = Path.home() / ".vault" / "secrets.db"
 _ENV_KEY = "NORTH9_VAULT_KEY"
 _PBKDF2_ITERATIONS = 600_000
+_LEGACY_SALT = b"vault-north9-salt"  # v0.1 hardcoded salt — kept for migration only
+_LEGACY_ITERATIONS = 100_000
 
 
-def _derive_key(master_key: str, salt: bytes) -> bytes:
-    """Derive a Fernet key from the master key using PBKDF2 with a per-vault salt."""
+def _derive_key(master_key: str, salt: bytes, iterations: int = _PBKDF2_ITERATIONS) -> bytes:
+    """Derive a Fernet key from the master key using PBKDF2."""
     import base64
     import hashlib
 
-    dk = hashlib.pbkdf2_hmac("sha256", master_key.encode(), salt, _PBKDF2_ITERATIONS)
+    dk = hashlib.pbkdf2_hmac("sha256", master_key.encode(), salt, iterations)
     return base64.urlsafe_b64encode(dk)
 
 
@@ -35,6 +37,46 @@ def _get_or_create_salt(conn: sqlite3.Connection) -> bytes:
     conn.execute("INSERT INTO meta VALUES ('salt', ?)", (salt,))
     conn.commit()
     return salt
+
+
+def _migrate_legacy_vault(conn: sqlite3.Connection, master_key: str) -> bool:
+    """Re-encrypt all secrets from v0.1 hardcoded salt to per-vault random salt.
+
+    Returns True if migration was performed, False if vault is already on v0.2.
+    Only called when a new salt is being created (no existing meta.salt row).
+    """
+    from cryptography.fernet import Fernet, InvalidToken
+
+    rows = conn.execute("SELECT name, ciphertext FROM secrets").fetchall()
+    if not rows:
+        return False  # empty vault — nothing to migrate
+
+    legacy_key = _derive_key(master_key, _LEGACY_SALT, _LEGACY_ITERATIONS)
+    legacy_fernet = Fernet(legacy_key)
+
+    # Test one secret with the legacy key — if it fails, vault is not v0.1
+    try:
+        legacy_fernet.decrypt(bytes(rows[0][1]))
+    except InvalidToken:
+        return False
+
+    # All secrets readable with legacy key — re-encrypt with new salt
+    new_salt = os.urandom(32)
+    new_key = _derive_key(master_key, new_salt)
+    new_fernet = Fernet(new_key)
+
+    for name, ciphertext in rows:
+        plaintext = legacy_fernet.decrypt(bytes(ciphertext))
+        new_ciphertext = new_fernet.encrypt(plaintext)
+        conn.execute(
+            "UPDATE secrets SET ciphertext = ? WHERE name = ?",
+            (new_ciphertext, name),
+        )
+
+    conn.execute("INSERT INTO meta VALUES ('salt', ?)", (new_salt,))
+    conn.execute("INSERT OR REPLACE INTO meta VALUES ('migrated_from', 'v0.1')", )
+    conn.commit()
+    return True
 
 
 def _get_fernet(key: bytes):
@@ -102,7 +144,16 @@ class Vault:
             )
         """)
         conn.commit()
-        # Derive key using per-vault salt (generated on first use, stored in DB)
+
+        # Check if this is a legacy v0.1 vault (has secrets but no meta table)
+        has_meta = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'"
+        ).fetchone()
+        if not has_meta:
+            # meta table absent — either new vault or v0.1 vault needing migration
+            _migrate_legacy_vault(conn, self._master_key)
+
+        # Derive key using per-vault salt (created on first use, stored in DB)
         salt = _get_or_create_salt(conn)
         self._fernet_key = _derive_key(self._master_key, salt)
         del self._master_key  # don't hold plaintext key longer than needed

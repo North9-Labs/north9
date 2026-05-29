@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .core import Assertion, Suite, SuiteResult
 
-mcp = FastMCP("forge")
+mcp = FastMCP("north9-forge")
 
 _EXAMPLE_YAML = """\
 name: "Example suite"

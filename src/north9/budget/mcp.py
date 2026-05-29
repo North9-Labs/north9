@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .core import Budget, BudgetExceeded
 
-mcp = FastMCP("budget")
+mcp = FastMCP("north9-budget")
 
 _budget: Budget | None = None
 

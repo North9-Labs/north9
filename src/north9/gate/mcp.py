@@ -245,7 +245,7 @@ Policy file: ~/.gate/policy.yaml — edit directly for complex rules.
 # ---------------------------------------------------------------------------
 
 if _MCP_AVAILABLE:
-    mcp = FastMCP("gate")
+    mcp = FastMCP("north9-gate")
 
     @mcp.tool()
     def gate_status() -> str:

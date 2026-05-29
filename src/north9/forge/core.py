@@ -56,7 +56,7 @@ class Assertion:
 
 
 @dataclass
-class TestCase:
+class EvalCase:
     name: str
     input: str
     assertions: list[Assertion] = field(default_factory=list)
@@ -65,7 +65,7 @@ class TestCase:
     tags: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, d: dict) -> TestCase:
+    def from_dict(cls, d: dict) -> EvalCase:
         assert_raw = d.get("assert", d.get("assertions", []))
         assertions = [Assertion.from_dict(a) for a in assert_raw]
         return cls(
@@ -79,8 +79,8 @@ class TestCase:
 
 
 @dataclass
-class TestResult:
-    case: TestCase
+class EvalResult:
+    case: EvalCase
     passed: bool
     failures: list[str]
     response: str
@@ -102,7 +102,7 @@ class TestResult:
 @dataclass
 class SuiteResult:
     suite_name: str
-    results: list[TestResult]
+    results: list[EvalResult]
     total_latency_ms: float = 0.0
 
     @property
@@ -138,7 +138,7 @@ class Suite:
     def __init__(
         self,
         name: str,
-        cases: list[TestCase],
+        cases: list[EvalCase],
         model: str = "claude-haiku-4-5-20251001",
         system: str | None = None,
         max_tokens: int = 1024,
@@ -155,7 +155,7 @@ class Suite:
             raise ImportError("PyYAML is required: pip install pyyaml")
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        cases = [TestCase.from_dict(c) for c in data.get("cases", [])]
+        cases = [EvalCase.from_dict(c) for c in data.get("cases", [])]
         return cls(
             name=data.get("name", Path(path).stem),
             cases=cases,
@@ -166,7 +166,7 @@ class Suite:
 
     @classmethod
     def from_dict(cls, data: dict) -> Suite:
-        cases = [TestCase.from_dict(c) for c in data.get("cases", [])]
+        cases = [EvalCase.from_dict(c) for c in data.get("cases", [])]
         return cls(
             name=data.get("name", "unnamed"),
             cases=cases,
@@ -187,7 +187,7 @@ class Suite:
         total_ms = (time.perf_counter() - suite_start) * 1000
         return SuiteResult(suite_name=self.name, results=results, total_latency_ms=total_ms)
 
-    def _run_case(self, case: TestCase, client: Any) -> TestResult:
+    def _run_case(self, case: EvalCase, client: Any) -> EvalResult:
         model = case.model or self.model
         system = case.system or self.system
         start = time.perf_counter()
@@ -218,7 +218,7 @@ class Suite:
                 if not ok:
                     failures.append(msg)
 
-        return TestResult(
+        return EvalResult(
             case=case,
             passed=not error and not failures,
             failures=failures,

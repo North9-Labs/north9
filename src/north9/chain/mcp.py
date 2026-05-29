@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .core import ToolExecutor, Workflow
 
-mcp = FastMCP("chain")
+mcp = FastMCP("north9-chain")
 
 # All North9 suite tools that Chain can call directly
 _KNOWN_TOOLS: dict[str, tuple[str, str]] = {

@@ -31,7 +31,11 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Tests
-        run: python -m pytest tests/test_memory.py tests/test_sandbox.py -v --tb=short
+        run: |
+          python -m pytest tests/ \
+            --ignore=tests/test_integration.py \
+            --ignore=tests/test_security.py \
+            -v --tb=short
 
       - name: Lint
         run: ruff check src/ tests/

@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .core import Grid, Task
 
-mcp = FastMCP("grid")
+mcp = FastMCP("north9-grid")
 
 _client: Any = None
 
