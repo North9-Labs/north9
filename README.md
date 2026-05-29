@@ -2,9 +2,9 @@
 
 # north9
 
-**The missing runtime for autonomous AI agents.**
+**The complete runtime for autonomous AI agents.**
 
-Run anything. Forget nothing.
+Safe execution. Persistent memory. Observability. Policy. All in one package.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -14,68 +14,61 @@ Run anything. Forget nothing.
 
 ---
 
-Two things kill long-running AI agents:
+Four things kill serious AI agents:
 
-**They destroy things.** Give an agent a `bash` tool and it `rm -rf`s the wrong directory, fills your disk, or loops forever consuming CPU. There's no wall between the agent and your machine.
+**They destroy things.** No wall between the agent and your machine. One `rm -rf` and it's gone.
 
-**They forget everything.** Context fills up. `/compact` turns 200 turns of exact file paths, error messages, and test results into vague prose. The agent loses where it was, retries the same broken approach, and asks questions it already answered three sessions ago.
+**They forget everything.** Context fills up. `/compact` turns exact file paths and error messages into vague prose. The agent retries approaches it already failed.
 
-north9 solves both in one package.
+**They go rogue.** No cost limits. No policy enforcement. No record of what they actually did.
+
+**You can't debug them.** When something goes wrong you have no trace, no replay, no diff — just a broken state and a blank conversation.
+
+north9 solves all four.
 
 ```
 sandbox   every command runs in Docker — your machine is always safe
 memory    structured state survives /compact and session restarts
+12 tools  observability, policy, eval, secrets, parallelism, and more
 ```
 
 ---
 
-## Results
+## Install
 
-40-turn realistic debugging session (FastAPI JWT auth incident). 10 critical values tracked. Resumption quality measured by asking Claude 10 factual questions using only the compressed context — no peeking at the original conversation.
-
-```
-                              Tokens    vs raw    Values    Resumption QA
-─────────────────────────────────────────────────────────────────────────
-Raw retention                  2,437      1.0x    10/10             —
-Prose summary (/compact)         267      9.1x     5/10           7/10
-north9 memory (structured)       584      4.2x     9/10           9/10
+```sh
+pip install "git+https://github.com/North9-Labs/north9.git"
 ```
 
-Prose is 2.2× smaller than north9 but answers 2 fewer questions correctly from the compressed context alone. The gap is larger on value presence (5/10 vs 9/10) — prose drops the exact test command, PR URL, deploy command, and test result count. An agent resuming from prose has to guess or re-investigate; north9 has the exact values ready.
-
-Run it yourself: `python3 benchmark/run.py` (uses `claude` CLI — Claude Code required).
+**Requires Docker** for sandbox tools.
 
 ---
 
 ## Claude Code setup
 
 ```sh
-# north9 only (sandbox + memory)
-pip install "git+https://github.com/North9-Labs/north9.git#egg=north9[mcp]" && python3 -m north9 --install
+# Core: sandbox + memory (17 tools)
+python3 -m north9 --install
 
-# Full suite (all 9 tools)
-pip install "git+https://github.com/North9-Labs/north9.git#egg=north9[mcp]" && python3 -m north9 --suite
+# Full suite: all 12 MCP servers registered at once
+python3 -m north9 --suite
 ```
 
-Restart Claude Code. **Requires Docker.**
+Restart Claude Code after either command.
 
-`--install` wires up three things. `--suite` also installs Lens, Index, Forge, Vault, Grid, Budget, Gate, and Scout.
+### What `--install` wires up
 
-### 1 — PreCompact hook
-
-Fires before **every** compaction — auto-compact when context fills and manual `/compact`. Claude saves structured memory before the prose summary is generated. No user action required.
+**PreCompact hook** — fires before every `/compact` and auto-compact:
 
 ```
 context fills → PreCompact hook fires
-             → memory_mark_completed / memory_mark_failed / memory_anchor
-             → memory_save()  →  .north9_state.json written to disk
+             → Claude saves memory before prose summary
+             → memory_save() → .north9_state.json written to disk
              → /compact proceeds (brief prose is fine — memory has exact values)
              → next session: state reloads automatically
 ```
 
-### 2 — SessionStart hook
-
-Prior state is injected before the first message of every session:
+**SessionStart hook** — injects prior state before your first message:
 
 ```
 [NORTH9] Prior session context restored:
@@ -98,15 +91,39 @@ KEY FACTS:
   • root_cause: src/auth/middleware.py:87
   • test_cmd: pytest tests/auth/ -v --tb=short
   • pr_url: https://github.com/acme/api/pull/412
-
-Sandbox ready — use bash(), write_file(), snapshot().
 ```
 
-Claude knows exactly where it left off before you say a word.
+Claude knows where it left off before you say a word.
 
-### 3 — MCP server (17 tools)
+---
 
-**Sandbox** — isolated Docker execution:
+## MCP servers
+
+| Server | Start command | Tools | What it does |
+|---|---|---|---|
+| `north9` | `python -m north9` | 17 | Sandbox (Docker) + persistent memory |
+| `north9-budget` | `python -m north9.budget` | 6 | Hard token/cost limits — block runaway spend |
+| `north9-gate` | `python -m north9.gate` | 7 | PreToolUse policy enforcement — block dangerous calls |
+| `north9-lens` | `python -m north9.lens` | 5 | Observability — trace every tool call, cost, latency |
+| `north9-index` | `python -m north9.index` | 5 | Persistent keyword search across sessions |
+| `north9-vault` | `python -m north9.vault` | 6 | Encrypted secrets — inject API keys at runtime |
+| `north9-grid` | `python -m north9.grid` | 4 | Parallel execution — N tasks at 30s → still 30s |
+| `north9-scout` | `python -m north9.scout` | 4 | Fetch any URL, full-text search stored content |
+| `north9-forge` | `python -m north9.forge` | 5 | Eval framework — YAML test cases, catch regressions |
+| `north9-sift` | `python -m north9.sift` | 4 | Load CSV/JSON into SQLite, query with SQL |
+| `north9-chain` | `python -m north9.chain` | 4 | YAML workflow runner connecting all north9 tools |
+| `north9-autopsy` | `python -m north9.autopsy` | 4 | Post-mortem — find waste patterns in agent sessions |
+| `prism` CLI | `prism inspect/report/diff/fork` | — | Record, replay, diff, fork any agent session |
+
+All servers register with `python -m north9 --suite`.
+
+---
+
+## Core tools: sandbox + memory
+
+### Sandbox
+
+Every command runs in an isolated Docker container. Your host is never touched.
 
 | Tool | Description |
 |---|---|
@@ -120,7 +137,9 @@ Claude knows exactly where it left off before you say a word.
 | `upload_file` | Copy a host file into the container |
 | `sandbox_status` | Workspace path, image, network, snapshots |
 
-**Memory** — persists across context resets:
+### Memory
+
+Structured state that survives every `/compact` and session restart.
 
 | Tool | Description |
 |---|---|
@@ -134,7 +153,9 @@ Claude knows exactly where it left off before you say a word.
 | `memory_save` | Checkpoint before risky operations |
 | `memory_reset` | Clear all state |
 
-### Sandbox image options
+---
+
+## Sandbox image options
 
 ```sh
 # Default: python:3.12-slim, no internet
@@ -146,6 +167,24 @@ python3 -m north9 --image ubuntu:22.04 --network bridge
 # Pre-built runtime: Python + Node + git + gcc + ripgrep + pnpm
 docker build -t north9-runtime . && python3 -m north9 --image north9-runtime --network bridge
 ```
+
+---
+
+## Memory benchmark
+
+40-turn realistic debugging session (FastAPI JWT auth incident). 10 critical values tracked. Resumption quality measured by asking Claude 10 factual questions using only the compressed context.
+
+```
+                              Tokens    vs raw    Values    Resumption QA
+─────────────────────────────────────────────────────────────────────────
+Raw retention                  2,437      1.0x    10/10             —
+Prose summary (/compact)         267      9.1x     5/10           7/10
+north9 memory (structured)       584      4.2x     9/10           9/10
+```
+
+Prose is 2.2× smaller but answers 2 fewer questions correctly. The gap is larger on value presence (5/10 vs 9/10) — prose drops the exact test command, PR URL, and deploy command. An agent resuming from prose has to re-investigate; north9 has the exact values ready.
+
+Run it yourself: `python3 benchmark/run.py` (uses `claude` CLI — Claude Code required).
 
 ---
 
@@ -169,8 +208,6 @@ with north9.Sandbox(network="bridge") as env:
     env.export("output.json", "./output.json")
 ```
 
-The agent can `rm -rf /workspace`. Your machine is fine.
-
 ### Memory
 
 ```python
@@ -181,17 +218,13 @@ mem = north9.Memory(client, keep_recent=10, token_limit=150_000)
 
 while not done:
     mem.add("user", get_next_input())
-
-    # mem.messages auto-compresses when over token_limit
     response = client.messages.create(
-        model="claude-opus-4-7",
+        model="claude-sonnet-4-6",
         max_tokens=8096,
         messages=mem.messages,
     )
-
     mem.add("assistant", response.content[0].text)
 
-# Pin facts that survive every compression
 mem.anchor("root_cause: src/auth/middleware.py:87")
 ```
 
@@ -206,21 +239,17 @@ mem = north9.Memory(client, keep_recent=10, token_limit=150_000)
 with north9.Sandbox(network="bridge") as env:
     while not done:
         mem.add("user", get_next_input())
-
         response = client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-sonnet-4-6",
             max_tokens=8096,
             tools=north9.TOOL_DEFINITIONS,
             messages=mem.messages,
         )
-
         for block in response.content:
             if block.type == "tool_use":
                 result = env.handle_tool_call(block.name, block.input)
-                # Tool results flow through Memory — compressed before context limit
                 mem.add_tool_use(block.name, block.input, tool_id=block.id)
                 mem.add_tool_result(block.id, result)
-
         mem.add("assistant", response.content[0].text)
 ```
 
@@ -236,7 +265,7 @@ async with north9.AsyncSandbox(network="bridge") as env:
     while not done:
         mem.add("user", get_next_input())
         response = await client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-sonnet-4-6",
             max_tokens=8096,
             messages=await mem.get_messages(),
         )
@@ -281,9 +310,21 @@ north9.Memory(
 
 | Model | Context | `token_limit` |
 |---|---|---|
-| claude-opus-4-7 | 200k | 150,000 |
 | claude-sonnet-4-6 | 200k | 150,000 |
+| claude-opus-4-8 | 200k | 150,000 |
 | gpt-4o | 128k | 90,000 |
+
+### Environment variables (MCP server)
+
+| Variable | Default | Description |
+|---|---|---|
+| `NORTH9_IMAGE` | `python:3.12-slim` | Docker image |
+| `NORTH9_NETWORK` | `none` | `none` or `bridge` |
+| `NORTH9_MEMORY` | `512m` | Container memory limit |
+| `NORTH9_CPUS` | `1.0` | Container CPU limit |
+| `NORTH9_WORKSPACE` | `~/.north9/workspaces/default` | Host workspace path |
+| `NORTH9_NAME` | `north9-default` | Container name |
+| `NORTH9_STATE_FILE` | `.north9_state.json` | Memory state file |
 
 ---
 
@@ -336,31 +377,11 @@ State accumulates across compressions. Pending items clear automatically when ma
 | "Do not retry" tracking | No | No | **Yes** |
 | Safe execution | No | No | **Yes** |
 | Snapshot + rollback | No | No | **Yes** |
-| Zero required dependencies | — | — | **Yes** |
+| Cost enforcement | No | No | **Yes** |
+| Policy/gate enforcement | No | No | **Yes** |
+| Session recording + replay | No | No | **Yes** |
 | Claude Code MCP | — | — | **Yes** |
 | Auto session restore | — | — | **Yes** |
-
----
-
-## North9 Labs
-
-north9 is part of a suite of tools for building serious AI agents:
-
-| Project | What it does |
-|---|---|
-| **north9** ← you are here | Sandbox + memory — safe execution and persistent context |
-| [**Lens**](https://github.com/North9-Labs/Lens) | Observability — trace every tool call, token cost, and latency |
-| [**Index**](https://github.com/North9-Labs/Index) | Semantic memory — keyword search across all past agent runs and projects |
-| [**Forge**](https://github.com/North9-Labs/Forge) | Eval framework — YAML test cases, run against any model, catch regressions |
-| [**Vault**](https://github.com/North9-Labs/Vault) | Secrets — encrypted credential store, inject API keys at runtime |
-| [**Grid**](https://github.com/North9-Labs/Grid) | Parallelism — N tasks at 30s each → still 30s total |
-| [**Budget**](https://github.com/North9-Labs/Budget) | Cost enforcement — hard token/cost limits, prevent runaway agent spend |
-| [**Gate**](https://github.com/North9-Labs/Gate) | Policy — block dangerous tool calls before they execute via PreToolUse hook |
-| [**Scout**](https://github.com/North9-Labs/Scout) | Web memory — fetch any URL, search its content by keyword |
-| [**Sift**](https://github.com/North9-Labs/Sift) | Data queries — load CSV/JSON into SQLite, query with SQL |
-| [**Chain**](https://github.com/North9-Labs/Chain) | Workflows — YAML pipelines connecting all North9 tools |
-| [**Prism**](https://github.com/North9-Labs/Prism) | Time-travel debugger — record, replay, and fork any agent session |
-| [**Seam**](https://github.com/North9-Labs/Seam) | Post-quantum encrypted communications over UDP |
 
 ---
 

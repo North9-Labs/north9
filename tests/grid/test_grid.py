@@ -169,7 +169,7 @@ def test_task_result_to_dict():
 # ---------------------------------------------------------------------------
 
 def _setup_mcp_client():
-    import grid.mcp as m
+    import north9.grid.mcp as m
     m._client = MockClient()
     return m
 
@@ -226,7 +226,7 @@ def test_mcp_grid_status_returns_string():
 
 
 def test_mcp_grid_map_no_api_key(monkeypatch):
-    import grid.mcp as m
+    import north9.grid.mcp as m
     m._client = None
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     result = m.grid_map(prompts_json='["test"]')
@@ -234,7 +234,7 @@ def test_mcp_grid_map_no_api_key(monkeypatch):
 
 
 def test_mcp_grid_run_no_api_key(monkeypatch):
-    import grid.mcp as m
+    import north9.grid.mcp as m
     m._client = None
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     result = m.grid_run(tasks_json='[{"prompt": "test"}]')

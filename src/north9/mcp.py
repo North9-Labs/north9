@@ -1,20 +1,12 @@
-"""north9 MCP server — unified sandbox + memory tools for Claude Code.
-
-One server. Two capabilities:
-
-  Sandbox tools  — run commands, write files, snapshot/rollback a Docker container
-  Memory tools   — persist context (completed work, failures, facts) across compactions
+"""north9 MCP server — sandbox + memory for Claude Code.
 
 Quick setup:
 
-    pip install "git+https://github.com/North9-Labs/north9.git#egg=north9[mcp]"
-    python3 -m north9 --install
+    pip install "git+https://github.com/North9-Labs/north9.git"
+    python3 -m north9 --install    # sandbox + memory only
+    python3 -m north9 --suite      # all 12 MCP servers
 
-This registers the MCP server and installs two Claude Code hooks:
-  PreCompact   — fires before every /compact and auto-compact; saves memory state
-  SessionStart — injects prior state at every session start
-
-── Sandbox config (env vars or --serve flags) ──────────────────────────────────
+── Sandbox config ───────────────────────────────────────────────────────────────
 
     NORTH9_IMAGE     Docker image (default: python:3.12-slim)
     NORTH9_NETWORK   none | bridge (default: none)
@@ -608,29 +600,40 @@ print("".join(lines), end="")
 _CLAUDE_MD_SECTION = '''
 ## north9
 
-You have the north9 MCP server — sandboxed execution + persistent memory.
+Complete runtime for autonomous AI agents. Run `python3 -m north9 --suite` to register all MCP servers.
 
-### Sandbox (Docker)
-All code runs in an isolated container. Your host is safe.
+### Sandbox (north9) — Docker isolation
 ```
-bash("command")                    # run anything
-write_file("path", "content")      # create files in /workspace
+bash("command")                    # run anything in container
+write_file("path", "content")      # write to /workspace
 read_file("path")                  # read files
 snapshot("before-install")         # checkpoint container state
 rollback("before-install")         # undo if something breaks
-sandbox_status()                   # see workspace path + container info
+sandbox_status()                   # workspace path + container info
 ```
-Open the workspace path in your editor — files appear live as you work.
 
-### Memory (persists across compactions and restarts)
-State is auto-injected at session start. Update it as you work.
+### Memory (north9) — persists across compactions and restarts
 ```
 memory_mark_completed("action → exact result, file, output")
 memory_mark_failed("what failed → exact error")   # never retry these
 memory_add_pending("concrete next step")
 memory_anchor("key: exact value")                 # paths, URLs, commands, errors
 memory_save()                                     # checkpoint before risky ops
+memory_get()                                      # read full state
 ```
+
+### Other MCP servers (install with --suite)
+- **north9-budget**: budget_status(), budget_set_limit(tokens, cost_usd), budget_record()
+- **north9-gate**: gate_status(), gate_check(tool, input), gate_add_rule(), gate_remove_rule()
+- **north9-lens**: lens_record(), lens_query(tool, limit), lens_sessions()
+- **north9-index**: index_add(content), index_search(query), index_list()
+- **north9-vault**: vault_set(key, value), vault_get(key), vault_env("KEY1,KEY2")
+- **north9-grid**: grid_run(tasks), grid_map(prompt, items)
+- **north9-scout**: scout_fetch(url), scout_search(query), scout_list()
+- **north9-forge**: forge_run(suite_yaml), forge_result(run_id)
+- **north9-sift**: sift_load(file, table), sift_query(sql), sift_tables()
+- **north9-chain**: chain_run(workflow_yaml), chain_list_tools()
+- **north9-autopsy**: autopsy_session(prism_file), autopsy_lens(session_id), autopsy_compare(a, b)
 
 ### Rules
 - snapshot() before apt-get, pip install, or any system-level change
@@ -905,7 +908,7 @@ def main() -> None:
     parser.add_argument("--state-file", default=None,
                         help="Memory state file (default: .north9_state.json)")
     parser.add_argument("--suite", action="store_true",
-                        help="Install the full North9 suite (all 11 packages)")
+                        help="Register all 12 MCP servers in Claude Code")
     parser.add_argument("--status", action="store_true",
                         help="Show installation status of all North9 packages")
     args, _ = parser.parse_known_args()

@@ -299,7 +299,7 @@ def test_trace_record_from_row():
 @pytest.fixture()
 def mcp_tracer(tmp_path):
     """Set up lens.mcp module with a temporary tracer."""
-    import lens.mcp as m
+    import north9.lens.mcp as m
 
     db = tmp_path / "mcp_test.db"
     old_tracer = m._tracer
