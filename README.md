@@ -37,7 +37,7 @@ memory    structured state survives /compact and session restarts
 ## Install
 
 ```sh
-pip install "git+https://github.com/North9-Labs/north9.git"
+curl -fsSL https://install.north9.org/north9.sh | sh
 ```
 
 **Requires Docker** for sandbox tools.
