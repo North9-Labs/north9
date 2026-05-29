@@ -153,7 +153,13 @@ class Scout:
         self.chunk_overlap = chunk_overlap
         self.timeout = timeout
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
+        try:
+            self._init_db()
+        except Exception:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+            raise
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
