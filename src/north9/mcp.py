@@ -778,106 +778,107 @@ def _install() -> None:
     print("Memory:    .north9_state.json (in your project)")
 
 
-_SUITE_PACKAGES = [
-    ("lens",   "git+https://github.com/North9-Labs/Lens.git",   "Agent observability"),
-    ("index",  "git+https://github.com/North9-Labs/Index.git",  "Persistent keyword memory"),
-    ("forge",  "git+https://github.com/North9-Labs/Forge.git",  "Eval framework"),
-    ("vault",  "git+https://github.com/North9-Labs/Vault.git",  "Encrypted secrets"),
-    ("grid",   "git+https://github.com/North9-Labs/Grid.git",   "Parallel execution"),
-    ("budget", "git+https://github.com/North9-Labs/Budget.git", "Cost enforcement"),
-    ("gate",   "git+https://github.com/North9-Labs/Gate.git",   "Policy enforcement"),
-    ("scout",  "git+https://github.com/North9-Labs/Scout.git",  "Web fetch + search"),
-    ("sift",   "git+https://github.com/North9-Labs/Sift.git",   "CSV/JSON SQL queries"),
-    ("chain",  "git+https://github.com/North9-Labs/Chain.git",  "Workflow runner"),
+# All tools are now bundled — no external installs needed.
+_SUITE_TOOLS = [
+    ("budget", "north9.budget.mcp",  "Cost enforcement"),
+    ("chain",  "north9.chain.mcp",   "Workflow runner"),
+    ("forge",  "north9.forge.mcp",   "Eval framework"),
+    ("gate",   "north9.gate.mcp",    "Policy enforcement"),
+    ("grid",   "north9.grid.mcp",    "Parallel execution"),
+    ("index",  "north9.index.mcp",   "Persistent keyword memory"),
+    ("lens",   "north9.lens.mcp",    "Agent observability"),
+    ("scout",  "north9.scout.mcp",   "Web fetch + search"),
+    ("sift",   "north9.sift.mcp",    "CSV/JSON SQL queries"),
+    ("vault",    "north9.vault.mcp",    "Encrypted secrets"),
+    ("autopsy",  "north9.autopsy.mcp", "Session behavioral analysis"),
 ]
 
 
 def _status() -> None:
-    """Show installation status of all North9 packages."""
-    import importlib.util
+    """Show registration status of all North9 MCP servers."""
     import json
 
-    print("North9 suite status\n")
+    print("North9 suite status (v0.2 monorepo)\n")
 
-    all_pkgs = [("north9", "Sandbox + memory")] + [(n, d) for n, _, d in _SUITE_PACKAGES]
-    installed = []
-    missing = []
-
-    for name, desc in all_pkgs:
-        spec = importlib.util.find_spec(name)
-        if spec is not None:
-            try:
-                mod = importlib.import_module(name)
-                version = getattr(mod, "__version__", "?")
-                print(f"  ✓ {name:<10} {version:<8} {desc}")
-                installed.append(name)
-            except Exception:
-                print(f"  ✓ {name:<10} {'?':<8} {desc}")
-                installed.append(name)
-        else:
-            print(f"  ✗ {name:<10} {'not installed':<8} {desc}")
-            missing.append(name)
-
+    import north9
+    print(f"  ✓ north9 {north9.__version__}  — all tools bundled")
     print()
 
-    # Check MCP server registration
     settings_path = Path.home() / ".claude" / "settings.json"
     if settings_path.exists():
         try:
             settings = json.loads(settings_path.read_text(encoding="utf-8"))
             registered = list(settings.get("mcpServers", {}).keys())
             hooks = settings.get("hooks", {})
-            print(f"  MCP servers registered: {', '.join(registered) if registered else 'none'}")
-            print(f"  Hooks: {', '.join(hooks.keys()) if hooks else 'none'}")
+            print(f"  MCP servers: {', '.join(registered) if registered else 'none'}")
+            print(f"  Hooks:       {', '.join(hooks.keys()) if hooks else 'none'}")
         except Exception:
             pass
     else:
         print("  Claude Code settings not found (~/.claude/settings.json)")
 
     print()
-    if missing:
-        print(f"  Missing: {', '.join(missing)}")
-        print("  Run: python3 -m north9 --suite   to install everything")
+    not_registered = [
+        name for name, _, _ in _SUITE_TOOLS
+        if f"north9-{name}" not in (
+            json.loads((Path.home() / ".claude" / "settings.json").read_text()).get("mcpServers", {})
+            if (Path.home() / ".claude" / "settings.json").exists() else {}
+        )
+    ]
+    if not_registered:
+        print(f"  Not registered: {', '.join(not_registered)}")
+        print("  Run: python3 -m north9 --suite   to register all MCP servers")
     else:
-        print("  All packages installed.")
+        print("  All MCP servers registered.")
 
 
 def _install_suite() -> None:
-    import subprocess
     import sys
 
-    print("Installing North9 suite...\n")
+    print("Installing North9 suite (monorepo — no downloads needed)...\n")
     _install()
     print()
 
-    failed = []
-    for name, url, desc in _SUITE_PACKAGES:
-        print(f"  Installing {name} ({desc})...")
+    python_exe = sys.executable
+    settings_path = Path.home() / ".claude" / "settings.json"
+    settings: dict = {}
+    if settings_path.exists():
         try:
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--quiet", url],
-                check=True,
-            )
-            subprocess.run(
-                [sys.executable, "-m", name, "--install"],
-                check=True,
-                capture_output=True,
-            )
-            print(f"  ✓ {name}")
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except Exception:
+            settings = {}
+
+    if "mcpServers" not in settings:
+        settings["mcpServers"] = {}
+
+    failed = []
+    for name, module, desc in _SUITE_TOOLS:
+        server_key = f"north9-{name}"
+        try:
+            settings["mcpServers"][server_key] = {
+                "command": python_exe,
+                "args": ["-m", module.rsplit(".mcp", 1)[0]],
+            }
+            print(f"  ✓ {server_key:<20} ({desc})")
         except Exception as e:
-            print(f"  ✗ {name}: {e}")
+            print(f"  ✗ {server_key}: {e}")
             failed.append(name)
+
+    tmp = str(settings_path) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, str(settings_path))
 
     print()
     if failed:
-        print(f"Installed with errors. Failed: {', '.join(failed)}")
-        print("Re-run: python3 -m <name> --install  to retry individual packages")
+        print(f"Registered with errors: {', '.join(failed)}")
     else:
-        print("Full suite installed. Restart Claude Code to activate all tools.")
+        print("All MCP servers registered. Restart Claude Code to activate.")
     print()
-    print("Install URLs:")
-    for name, _, _ in _SUITE_PACKAGES:
-        print(f"  curl -fsSL https://install.north9.org/{name}.sh | sh")
+    print("Tools available after restart:")
+    print("  north9        → sandbox + memory (17 tools)")
+    for name, _, desc in _SUITE_TOOLS:
+        print(f"  north9-{name:<8} → {desc}")
 
 
 def main() -> None:
