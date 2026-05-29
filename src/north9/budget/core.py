@@ -102,7 +102,13 @@ class Budget:
         self.tokens_limit = tokens_limit
         self.cost_limit_usd = cost_limit_usd
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
+        try:
+            self._init_db()
+        except Exception:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+            raise
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:

@@ -130,6 +130,7 @@ def _install() -> None:
         "sid=os.environ.get('BUDGET_SESSION',''); "
         "conn=sqlite3.connect(str(db)) if db.exists() else None; "
         "rows=conn.execute('SELECT tokens_in,tokens_out,cost_usd FROM usage WHERE session_id=?',(sid,)).fetchall() if conn and sid else []; "
+        "conn.close() if conn else None; "
         "tokens=sum(r[0]+r[1] for r in rows); "
         "cost=sum(r[2] for r in rows); "
         "print(f'[BUDGET] Session {sid}: {tokens} tokens used, ${cost:.4f} spent')"
@@ -199,8 +200,7 @@ def main() -> None:
     parser.add_argument("--db", default=None, help="SQLite DB path")
     args, _ = parser.parse_known_args()
     if args.db:
-        global _db_path
-        _db_path = args.db
+        os.environ["BUDGET_DB"] = args.db
     if args.install:
         _install()
         return

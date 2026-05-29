@@ -80,12 +80,18 @@ class Sift:
 
     def schema(self, table: str) -> list[dict]:
         """Get column names and types for a table."""
-        rows = self._conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if table not in self._tables:
+            raise ValueError(f"Unknown table: {table!r}. Loaded: {list(self._tables)}")
+        # table validated against sanitized _tables keys — safe to interpolate
+        rows = self._conn.execute(f'PRAGMA table_info("{table}")').fetchall()
         return [{"name": r[1], "type": r[2]} for r in rows]
 
     def sample(self, table: str, n: int = 5) -> list[dict[str, Any]]:
         """Get n sample rows from a table."""
-        return self.query(f"SELECT * FROM {table} LIMIT {n}")
+        if table not in self._tables:
+            raise ValueError(f"Unknown table: {table!r}. Loaded: {list(self._tables)}")
+        n = min(max(1, int(n)), 1000)
+        return self.query(f'SELECT * FROM "{table}" LIMIT {n}')
 
     def close(self) -> None:
         self._conn.close()

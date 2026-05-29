@@ -95,7 +95,13 @@ class Tracer:
         self.db_path = Path(db_path).expanduser()
         self.session_id = session_id or str(uuid.uuid4())[:8]
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
+        try:
+            self._init_db()
+        except Exception:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+            raise
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:

@@ -56,7 +56,13 @@ class Index:
     def __init__(self, db_path: str | Path = _DEFAULT_DB):
         self.db_path = Path(db_path).expanduser()
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
+        try:
+            self._init_db()
+        except Exception:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+            raise
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -188,10 +194,12 @@ class Index:
                 (source, limit),
             ).fetchall()
         elif tag:
+            # Escape LIKE wildcards in tag to prevent incorrect matches
+            escaped = tag.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             rows = conn.execute(
                 "SELECT id, content, source, tags, metadata, created_at FROM chunks "
-                "WHERE tags LIKE ? ORDER BY created_at DESC LIMIT ?",
-                (f'%"{tag}"%', limit),
+                "WHERE tags LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?",
+                (f'%"{escaped}"%', limit),
             ).fetchall()
         else:
             rows = conn.execute(

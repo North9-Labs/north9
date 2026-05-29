@@ -11,15 +11,30 @@ from typing import Any
 
 _DEFAULT_DB = Path.home() / ".vault" / "secrets.db"
 _ENV_KEY = "NORTH9_VAULT_KEY"
+_PBKDF2_ITERATIONS = 600_000
 
 
-def _derive_key(master_key: str) -> bytes:
-    """Derive a Fernet key from the master key string using PBKDF2."""
+def _derive_key(master_key: str, salt: bytes) -> bytes:
+    """Derive a Fernet key from the master key using PBKDF2 with a per-vault salt."""
     import base64
     import hashlib
 
-    dk = hashlib.pbkdf2_hmac("sha256", master_key.encode(), b"vault-north9-salt", 100_000)
+    dk = hashlib.pbkdf2_hmac("sha256", master_key.encode(), salt, _PBKDF2_ITERATIONS)
     return base64.urlsafe_b64encode(dk)
+
+
+def _get_or_create_salt(conn: sqlite3.Connection) -> bytes:
+    """Return the per-vault salt, creating and persisting it on first use."""
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value BLOB NOT NULL)"
+    )
+    row = conn.execute("SELECT value FROM meta WHERE key = 'salt'").fetchone()
+    if row:
+        return bytes(row[0])
+    salt = os.urandom(32)
+    conn.execute("INSERT INTO meta VALUES ('salt', ?)", (salt,))
+    conn.commit()
+    return salt
 
 
 def _get_fernet(key: bytes):
@@ -58,9 +73,16 @@ class Vault:
             raise ValueError(
                 f"No master key provided. Set {_ENV_KEY} env var or pass master_key=..."
             )
-        self._fernet_key = _derive_key(mk)
+        self._master_key = mk
+        self._fernet_key: bytes | None = None
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
+        try:
+            self._init_db()
+        except Exception:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+            raise
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -80,9 +102,13 @@ class Vault:
             )
         """)
         conn.commit()
+        # Derive key using per-vault salt (generated on first use, stored in DB)
+        salt = _get_or_create_salt(conn)
+        self._fernet_key = _derive_key(self._master_key, salt)
+        del self._master_key  # don't hold plaintext key longer than needed
 
     def set(self, name: str, value: str, tags: list[str] | None = None) -> None:
-        f = _get_fernet(self._fernet_key)
+        f = _get_fernet(self._fernet_key)  # type: ignore[arg-type]
         ciphertext = f.encrypt(value.encode())
         now = datetime.now(timezone.utc).isoformat()
         conn = self._connect()
@@ -106,7 +132,7 @@ class Vault:
         ).fetchone()
         if row is None:
             raise KeyError(f"Secret {name!r} not found")
-        f = _get_fernet(self._fernet_key)
+        f = _get_fernet(self._fernet_key)  # type: ignore[arg-type]
         return f.decrypt(row[0]).decode()
 
     def delete(self, name: str) -> bool:

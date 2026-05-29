@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -13,6 +14,33 @@ except ImportError:
     _YAML_AVAILABLE = False
 
 Decision = Literal["allow", "block", "warn"]
+_MAX_REGEX_LEN = 500
+_REGEX_TIMEOUT_SEC = 0.5
+
+
+def _safe_regex_search(pattern: str, text: str) -> bool:
+    """Run re.search with length cap and SIGALRM timeout to prevent ReDoS."""
+    if not pattern or len(pattern) > _MAX_REGEX_LEN:
+        return False
+    try:
+        compiled = re.compile(pattern, re.IGNORECASE | re.DOTALL)
+    except re.error:
+        return False
+
+    if hasattr(signal, "SIGALRM"):
+        def _alarm(signum: int, frame: Any) -> None:
+            raise TimeoutError()
+        old = signal.signal(signal.SIGALRM, _alarm)
+        signal.setitimer(signal.ITIMER_REAL, _REGEX_TIMEOUT_SEC)
+        try:
+            return bool(compiled.search(text))
+        except TimeoutError:
+            return False
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, old)
+    else:
+        return bool(compiled.search(text))
 
 
 @dataclass
@@ -35,7 +63,7 @@ class Rule:
         if not self.matches_tool(tool_name):
             return False, ""
         input_str = str(tool_input)
-        if re.search(self.match, input_str, re.IGNORECASE | re.DOTALL):
+        if _safe_regex_search(self.match, input_str):
             return True, self.reason
         return False, ""
 

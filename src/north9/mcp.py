@@ -130,6 +130,8 @@ def bash(command: str, timeout: int = 120) -> str:
 
     Snapshot before installing packages or making system changes.
     """
+    if not (1 <= timeout <= 3600):
+        return "Error: timeout must be between 1 and 3600 seconds"
     try:
         return _fmt(_get_sandbox().run(command, timeout=timeout))
     except CageError as e:

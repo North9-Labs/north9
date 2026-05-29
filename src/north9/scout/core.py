@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
+import re
+import socket
 import sqlite3
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass
@@ -11,6 +15,37 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+
+_ALLOWED_SCHEMES = frozenset(("http", "https"))
+_BLOCKED_HOSTS = frozenset((
+    "localhost", "127.0.0.1", "::1", "0.0.0.0",
+    "169.254.169.254",          # AWS/GCP/Azure metadata
+    "metadata.google.internal",  # GCP metadata
+    "metadata.internal",
+))
+_SAFE_CHARSET_RE = re.compile(r'^[\w-]+$')
+
+
+def _check_url(url: str) -> None:
+    """Raise ValueError for non-http(s), internal IPs, or metadata endpoints."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception as e:
+        raise ValueError(f"Invalid URL: {e}") from e
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(f"Only http/https URLs allowed, got scheme: {parsed.scheme!r}")
+    host = parsed.hostname or ""
+    if not host:
+        raise ValueError("URL has no host")
+    if host.lower() in _BLOCKED_HOSTS:
+        raise ValueError(f"Blocked host: {host}")
+    # Resolve and check for private/loopback IP ranges
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(host))
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError(f"Private/internal IP not allowed: {ip}")
+    except socket.gaierror:
+        pass  # unresolvable — let urlopen fail naturally
 
 _DEFAULT_DB = Path.home() / ".scout" / "pages.db"
 _DEFAULT_CHUNK_SIZE = 800   # chars per chunk
@@ -169,6 +204,8 @@ class Scout:
 
         If force=False and the URL was already fetched, returns cached result.
         """
+        _check_url(url)
+
         if not force:
             existing = self._get_page(url)
             if existing:
@@ -182,14 +219,16 @@ class Scout:
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 content_type = resp.headers.get("Content-Type", "")
-                raw = resp.read()
+                raw = resp.read(10 * 1024 * 1024)  # 10 MB cap
         except urllib.error.URLError as e:
             raise ValueError(f"Failed to fetch {url}: {e}") from e
 
-        # Decode
+        # Decode — sanitize charset to prevent codec injection
         charset = "utf-8"
         if "charset=" in content_type:
-            charset = content_type.split("charset=")[-1].split(";")[0].strip()
+            raw_charset = content_type.split("charset=")[-1].split(";")[0].strip()
+            if _SAFE_CHARSET_RE.match(raw_charset):
+                charset = raw_charset
         try:
             html = raw.decode(charset, errors="replace")
         except Exception:
@@ -269,16 +308,20 @@ class Scout:
                 (query, k),
             ).fetchall()
 
-        return [
-            SearchResult(
+        results = []
+        for r in rows:
+            try:
+                score = abs(float(r[4]))
+            except (TypeError, ValueError):
+                score = 0.0
+            results.append(SearchResult(
                 chunk_id=r[0],
                 url=r[1],
                 title=r[2] or r[1],
                 snippet=r[3][:300] + ("…" if len(r[3]) > 300 else ""),
-                score=abs(float(r[4])),
-            )
-            for r in rows
-        ]
+                score=score,
+            ))
+        return results
 
     def list_pages(self, limit: int = 20) -> list[Page]:
         conn = self._connect()

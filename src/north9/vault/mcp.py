@@ -116,14 +116,13 @@ def vault_env(names: str) -> str:
         missing = [n for n in name_list if not v.has(n)]
         if missing:
             return f"Error: secrets not found: {', '.join(missing)}"
+        import shlex
         values = v.env(*name_list)
         lines = [
             "# WARNING: output contains sensitive values — handle with care",
         ]
         for k, val in values.items():
-            # Escape double quotes in value
-            safe_val = val.replace("\\", "\\\\").replace('"', '\\"')
-            lines.append(f'export {k}="{safe_val}"')
+            lines.append(f"export {k}={shlex.quote(val)}")
         return "\n".join(lines)
     except Exception as exc:
         return f"Error: {exc}"
@@ -156,17 +155,21 @@ def _install() -> None:
             settings["mcpServers"]["north9-vault"] = vault_mcp_entry
 
             settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(settings_path, "w") as f:
+            tmp = str(settings_path) + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=2)
+            os.replace(tmp, str(settings_path))
             print(f"Registered vault MCP server in {settings_path}")
             break
     else:
         # Create in home .claude
         target = Path.home() / ".claude" / "settings.json"
         target.parent.mkdir(parents=True, exist_ok=True)
-        settings = {"mcpServers": {"vault": vault_mcp_entry}}
-        with open(target, "w") as f:
+        settings = {"mcpServers": {"north9-vault": vault_mcp_entry}}
+        tmp = str(target) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
+        os.replace(tmp, str(target))
         print(f"Created {target} with vault MCP server")
 
     # Add CLAUDE.md section
